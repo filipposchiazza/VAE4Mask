@@ -124,7 +124,20 @@ class Encoder(nn.Module):
                  base_channels,
                  channel_multipliers,
                  num_res_blocks):
+        """Encoder module.
         
+        Parameters:
+        -----------
+        input_channels : int
+            Number of input channels.
+        base_channels : int
+            Number of base channels.
+        channel_multipliers : list
+            List of channel multipliers.
+        num_res_blocks : list   
+            List of number of residual blocks.
+        """
+
         super(Encoder, self).__init__()
 
         self.input_channels = input_channels
@@ -173,6 +186,19 @@ class Decoder(nn.Module):
                      base_channels,
                      channel_multipliers,
                      num_res_blocks):
+            """Decoder module.
+
+            Parameters:
+            -----------
+            output_channels : int
+                Number of output channels.
+            base_channels : int
+                Number of base channels.
+            channel_multipliers : list  
+                List of channel multipliers.
+            num_res_blocks : list
+                List of number of residual blocks.
+            """
             
             super(Decoder, self).__init__()
     
