@@ -14,6 +14,7 @@ class VAE(nn.Module):
                  channel_multipliers,
                  num_res_blocks,
                  latent_dim,
+                 device,
                  img_size=256):
         """Variational Autoencoder.
 
@@ -43,13 +44,14 @@ class VAE(nn.Module):
         self.num_res_blocks = num_res_blocks
         self.latent_dim = latent_dim
         self.img_size = img_size
+        self.device = device
 
         self.encoder = Encoder(in_channels=in_channels,
                                base_channels=base_channels,
                                channel_multipliers=channel_multipliers,
                                num_res_blocks=num_res_blocks)
         
-        self.decoder = Decoder(output_channels=out_channels,
+        self.decoder = Decoder(out_channels=out_channels,
                                base_channels=base_channels,
                                channel_multipliers=channel_multipliers,
                                num_res_blocks=num_res_blocks)
@@ -58,12 +60,16 @@ class VAE(nn.Module):
         self.shape_before_flatten = (base_channels * channel_multipliers[-1], 
                                      img_size // 2 ** len(channel_multipliers), 
                                      img_size // 2 ** len(channel_multipliers))
+        self.num_dense_features = int(torch.prod(torch.Tensor([self.shape_before_flatten])).item())
 
-        self.mean = nn.Linear(in_features=torch.mul(*self.shape_before_flatten),
+        self.mean = nn.Linear(in_features=self.num_dense_features, 
                               out_features=latent_dim)
         
-        self.log_var = nn.Linear(in_features=torch.mul(*self.shape_before_flatten),
+        self.log_var = nn.Linear(in_features=self.num_dense_features, 
                                  out_features=latent_dim)
+        
+        self.decoder_input = nn.Linear(in_features=latent_dim, 
+                                       out_features=self.num_dense_features)
         
         self.num_parameters = self._calculate_num_parameters()
         
@@ -84,7 +90,7 @@ class VAE(nn.Module):
             Sampled latent tensor.
         """
         std = torch.exp(0.5 * log_var)
-        eps = torch.randn_like(std)
+        eps = torch.randn_like(std).to(self.device)
         z = mean + eps * std
         return z
     
@@ -94,18 +100,41 @@ class VAE(nn.Module):
 
         y = self.encoder(x) # The output still have convolutional structure
 
-        y = y.view(-1, self.linear_in_features) # Flatten the output
+        y = y.view(-1, self.num_dense_features) # Flatten the output
 
         mean = self.mean(y)
         log_var = self.log_var(y)
         
         z = self.reparameterize(mean, log_var)
 
+        z = self.decoder_input(z)
+
         z = z.view(-1, *self.shape_before_flatten) # Reshape the tensor
 
         x_pred = self.decoder(z)
 
         return x_pred, mean, log_var
+    
+
+    def sample(self, batch_size):
+        """Sample from the latent space.
+        
+        Parameters:
+        -----------
+        num_samples : int
+            Number of samples to generate.
+        
+        Returns:
+        --------
+        samples : torch.Tensor
+            Samples from the latent space.
+        """
+        with torch.no_grad():
+            z = torch.randn(batch_size, self.latent_dim).to(self.device)
+            z = self.decoder_input(z)
+            z = z.view(-1, *self.shape_before_flatten) # Reshape the tensor
+            samples = self.decoder(z)
+        return samples
 
 
 
@@ -135,6 +164,7 @@ class VAE(nn.Module):
                       self.channel_multipliers,
                       self.num_res_blocks,
                       self.latent_dim,
+                      self.device,
                       self.img_size]
         with open(param_file, 'wb') as f:
             pickle.dump(parameters, f)

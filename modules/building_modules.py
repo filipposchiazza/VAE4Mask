@@ -120,7 +120,7 @@ class UpSample(nn.Module):
 class Encoder(nn.Module):
 
     def __init__(self,
-                 input_channels,
+                 in_channels,
                  base_channels,
                  channel_multipliers,
                  num_res_blocks):
@@ -128,7 +128,7 @@ class Encoder(nn.Module):
         
         Parameters:
         -----------
-        input_channels : int
+        in_channels : int
             Number of input channels.
         base_channels : int
             Number of base channels.
@@ -140,13 +140,13 @@ class Encoder(nn.Module):
 
         super(Encoder, self).__init__()
 
-        self.input_channels = input_channels
+        self.in_channels = in_channels
         self.base_channels = base_channels
         self.channel_multipliers = channel_multipliers
         self.num_res_blocks = num_res_blocks
 
         # First convolution to reduce the image dimensionality
-        self.conv0 = nn.Conv2d(in_channels=input_channels,
+        self.conv0 = nn.Conv2d(in_channels=in_channels,
                                out_channels=base_channels,
                                kernel_size=2,
                                stride=2,
@@ -182,7 +182,7 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     
         def __init__(self,
-                     output_channels,
+                     out_channels,
                      base_channels,
                      channel_multipliers,
                      num_res_blocks):
@@ -190,7 +190,7 @@ class Decoder(nn.Module):
 
             Parameters:
             -----------
-            output_channels : int
+            out_channels : int
                 Number of output channels.
             base_channels : int
                 Number of base channels.
@@ -202,7 +202,7 @@ class Decoder(nn.Module):
             
             super(Decoder, self).__init__()
     
-            self.output_channels = output_channels
+            self.out_channels = out_channels
             self.base_channels = base_channels
             self.channel_multipliers = channel_multipliers
             self.num_res_blocks = num_res_blocks
@@ -224,7 +224,7 @@ class Decoder(nn.Module):
             
             # Last convolution to increase the image dimensionality
             self.conv_out = nn.ConvTranspose2d(in_channels=self.base_channels,
-                                               out_channels=self.output_channels,
+                                               out_channels=self.out_channels,
                                                kernel_size=2,
                                                stride=2,
                                                padding=0)
