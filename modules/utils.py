@@ -58,3 +58,33 @@ def swa_update(swa_model, model, epoch, epoch_step, verbose=True):
             print(f'SWA model updated at epoch {epoch}')
     return True
 
+
+
+def dice_coefficient(pred, target, epsilon=1e-6):
+    """
+    Calculate the Dice Coefficient between the predicted and target masks.
+
+    Parameters
+    ----------
+    pred : torch.Tensor
+        Predicted mask.
+    target : torch.Tensor
+        Target mask.
+    epsilon : float
+        Small value to avoid division by zero.
+    
+    Returns
+    -------
+    dice_coeff : float
+        Dice Coefficient.
+    """
+    # Flatten the tensors
+    pred_flat = pred.contiguous().view(-1)
+    target_flat = target.contiguous().view(-1)
+    
+    intersection = (pred_flat * target_flat).sum()
+    numerator = 2. * intersection + epsilon
+    denominator = pred_flat.sum() + target_flat.sum() + epsilon
+    dice_coeff = numerator / denominator
+    return dice_coeff
+
