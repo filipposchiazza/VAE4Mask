@@ -116,13 +116,15 @@ class VAE(nn.Module):
         return x_pred, mean, log_var
     
 
-    def sample(self, batch_size):
+    def sample(self, batch_size, binary=True):
         """Sample from the latent space.
         
         Parameters:
         -----------
-        num_samples : int
+        batch_size : int
             Number of samples to generate.
+        binary : bool
+            If True, the output is binarized.
         
         Returns:
         --------
@@ -134,6 +136,10 @@ class VAE(nn.Module):
             z = self.decoder_input(z)
             z = z.view(-1, *self.shape_before_flatten) # Reshape the tensor
             samples = self.decoder(z)
+
+            if binary:
+                samples = (samples > 0.5).float()
+                
         return samples
 
 
