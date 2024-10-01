@@ -55,7 +55,19 @@ class VAE(nn.Module):
                                base_channels=base_channels,
                                channel_multipliers=channel_multipliers,
                                num_res_blocks=num_res_blocks)
+        """
+        self.latent_conv = nn.Conv2d(in_channels=base_channels * channel_multipliers[-1],
+                                     out_channels=4,
+                                     kernel_size=1,
+                                     stride=1,
+                                     padding=0)
         
+        self.decoder_input = nn.Conv2d(in_channels=2,
+                                       out_channels=base_channels * channel_multipliers[-1],
+                                       kernel_size=1,
+                                       stride=1,
+                                       padding=0)
+        """
         # Calculate the number of features in the linear layer
         self.shape_before_flatten = (base_channels * channel_multipliers[-1], 
                                      img_size // 2 ** len(channel_multipliers), 
@@ -116,12 +128,12 @@ class VAE(nn.Module):
         return x_pred, mean, log_var
     
 
-    def sample(self, batch_size, binary=True):
+    def sample(self, num_samples, binary=True):
         """Sample from the latent space.
         
         Parameters:
         -----------
-        batch_size : int
+        num_samples : int
             Number of samples to generate.
         binary : bool
             If True, the output is binarized.
@@ -131,15 +143,21 @@ class VAE(nn.Module):
         samples : torch.Tensor
             Samples from the latent space.
         """
-        with torch.no_grad():
-            z = torch.randn(batch_size, self.latent_dim).to(self.device)
-            z = self.decoder_input(z)
-            z = z.view(-1, *self.shape_before_flatten) # Reshape the tensor
-            samples = self.decoder(z)
-
-            if binary:
-                samples = (samples > 0.5).float()
-                
+        samples = []
+        for i in range(num_samples):
+            with torch.no_grad():
+                condition = True
+                while condition:
+                    z = torch.randn(1, self.latent_dim).to(self.device)
+                    z = self.decoder_input(z)
+                    z = z.view(-1, *self.shape_before_flatten)
+                    sample = self.decoder(z).squeeze(0)
+                    if binary:
+                        sample = (sample > 0.5).float()
+                    if torch.sum(sample) > 100:
+                        condition = False
+                samples.append(sample)
+        samples = torch.stack(samples)
         return samples
 
 
@@ -201,7 +219,7 @@ class VAE(nn.Module):
 
 
     @classmethod
-    def load_model(cls, save_folder):
+    def load_model(cls, save_folder, swa_version=False):
         """Load the parameters and the model state_dict
         
         Parameters:
@@ -214,8 +232,12 @@ class VAE(nn.Module):
             parameters = pickle.load(f)
         
         model = cls(*parameters)
-    
-        model_file = os.path.join(save_folder, 'VAEModel.pt')
+
+        if swa_version:
+            model_file = os.path.join(save_folder, 'SWAModel.pt')
+        else:
+            model_file = os.path.join(save_folder, 'VAEModel.pt')
+        
         model.load_state_dict(torch.load(model_file, map_location='cuda:0'))
     
         return model
@@ -240,6 +262,56 @@ class VAE(nn.Module):
         with open(history_file, 'rb') as f:
             history = pickle.load(f)
         return history
+    
+
+
+
+
+
+
+
+class AE(nn.Module):
+
+    def __init__(self, device):
+
+        super(AE, self).__init__()
+
+        self.l1 = nn.Linear(256*256, 2048)
+        self.l2 = nn.Linear(2048, 1024)
+        self.l3 = nn.Linear(1024, 512)
+        self.l4 = nn.Linear(512, 256)
+
+        self.l5 = nn.Linear(256, 512)
+        self.l6 = nn.Linear(512, 1024)
+        self.l7 = nn.Linear(1024, 2048)
+        self.l8 = nn.Linear(2048, 256*256)
+
+        self.num_parameters = self._calculate_num_parameters()
+        self.device = device
+
+    
+    def forward(self, x):
+        x = self.l1(x)
+        x = self.l2(x)
+        x = self.l3(x)
+        x = self.l4(x)
+        x = self.l5(x)
+        x = self.l6(x)
+        x = self.l7(x)
+        x = self.l8(x)
+
+        return nn.Sigmoid()(x)
+
+
+    def _calculate_num_parameters(self):
+        """Calculate the number of model parameters."""
+        num_parameters = 0
+        for param in self.parameters():
+            num_parameters += param.numel()
+        return num_parameters
+    
+
+
         
 
         
