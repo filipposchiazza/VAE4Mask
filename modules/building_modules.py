@@ -229,6 +229,7 @@ class Decoder(nn.Module):
                                                stride=2,
                                                padding=0)
             
+            self.sigmoid = nn.Sigmoid()
     
         def forward(self, x):
             
@@ -236,6 +237,7 @@ class Decoder(nn.Module):
                 x = layer(x)
             
             x = self.conv_out(x)
+            x = self.sigmoid(x)
             
             return x
     
