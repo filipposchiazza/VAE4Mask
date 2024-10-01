@@ -27,7 +27,7 @@ def checkpoint(model, save_folder, current_epoch, epoch_step, batch_size=None):
         model.save_model(checkpoint_dir)
         # Samples generation
         if batch_size is not None:
-            gen_imgs = model.sample(batch_size=batch_size)
+            gen_imgs = model.sample(num_samples=batch_size)
             gen_imgs_file = os.path.join(checkpoint_dir, 'gen_imgs.pt')
             torch.save(gen_imgs, gen_imgs_file)
 
