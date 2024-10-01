@@ -56,9 +56,7 @@ class MaskDataset(data.Dataset):
 
     def __getitem__(self, idx):
         img_name, label = self.images[idx]
-        full_img = read_image(img_name)
-        full_img = full_img[:3, :, :]
-        mask = full_img[0, :, full_img.shape[2] // 2:] / 255.0
+        mask = read_image(img_name)[0, :, :] / 255.0
         return mask.unsqueeze(0), label
     
 
