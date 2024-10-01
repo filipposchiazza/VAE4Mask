@@ -150,7 +150,7 @@ class VaeTrainer():
                 x_pred, mean, log_var = self.model(masks)
 
                 # Compute the losses
-                rec_loss = F.binary_cross_entropy_with_logits(x_pred, masks, reduction='mean')
+                rec_loss = F.binary_cross_entropy(x_pred, masks, reduction='mean')
                 kl_loss = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
                 total_loss = rec_loss + kl_weight * kl_loss
                 with torch.no_grad():
@@ -183,7 +183,7 @@ class VaeTrainer():
                 tepoch.set_postfix(total_loss="{:.6f}".format(mean_total_loss),
                                    rec_loss="{:.6f}".format(mean_rec_loss),
                                    kl_loss="{:.6f}".format(mean_kl_loss),
-                                   dice="{:.2f}".format(mean_dice))
+                                   dice="{:.3f}".format(mean_dice))
         
         return mean_total_loss, mean_rec_loss, mean_kl_loss, mean_dice
     
@@ -207,7 +207,7 @@ class VaeTrainer():
                 x_pred, mean, log_var = self.model(masks)
 
                 # Compute the losses
-                rec_loss = F.binary_cross_entropy_with_logits(x_pred, masks, reduction='mean')
+                rec_loss = F.binary_cross_entropy(x_pred, masks, reduction='mean')
                 kl_loss = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
                 total_loss = rec_loss + kl_weight * kl_loss
                 binary_pred = (x_pred > 0.5).float()
@@ -227,7 +227,6 @@ class VaeTrainer():
         print(f'Validation total loss: {mean_total_loss:.6f}, '
               f'Reconstruction loss: {mean_rec_loss:.6f}, '
               f'KL loss: {mean_kl_loss:.6f}',
-              f'Dice Coefficient: {mean_dice:.2f}')
+              f'Dice Coefficient: {mean_dice:.3f}')
         
         return mean_total_loss, mean_rec_loss, mean_kl_loss, mean_dice
-    
