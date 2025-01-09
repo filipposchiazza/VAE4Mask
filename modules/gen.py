@@ -8,7 +8,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 
-def generate_synthetic_masks(num_cells, vae_model, size=256):
+def generate_synthetic_masks_old(num_cells, vae_model, size=256):
     """ Generate one synthetic patch using the VAE model
 
     Parameters:
@@ -57,7 +57,6 @@ def generate_synthetic_masks(num_cells, vae_model, size=256):
     return synthetic_mask
 
 
-
 def crop_object(binary_mask):
     """ Crop the object from the binary mask 
     
@@ -87,7 +86,7 @@ def crop_object(binary_mask):
 
 
 
-def can_place(patch, mask, top_left):
+def can_place_old(patch, mask, top_left):
     """ Check if the mask can be placed at the top_left position without overlap
 
     Parameters:
@@ -112,7 +111,7 @@ def can_place(patch, mask, top_left):
 
 
 
-def place_masks_randomly(cropped_masks, final_size=256):
+def place_masks_randomly_old(cropped_masks, final_size=256):
     """ Place all masks randomly within the final patch 
     
     Parameters:
@@ -133,10 +132,10 @@ def place_masks_randomly(cropped_masks, final_size=256):
         placed = False
         while not placed:
             # Generate random top-left corner
-            x = random.randint(0, final_size - mask.shape[0])
-            y = random.randint(0, final_size - mask.shape[1])
-            if can_place(final_patch, mask, (x, y)):
-                final_patch[x:x+mask.shape[0], y:y+mask.shape[1]] = mask
+            y = random.randint(0, final_size - mask.shape[0])
+            x = random.randint(0, final_size - mask.shape[1])
+            if can_place(final_patch, mask, (y, x)):
+                final_patch[y:y+mask.shape[0], x:x+mask.shape[1]] = mask
                 placed = True
     return final_patch
 
@@ -183,9 +182,142 @@ def estimate_num_cells_distribution(filenames, num_samples):
         mask = plt.imread(filenames[i])[:, 256:, 0].astype(np.uint8)
         num_objects = count_num_cells(mask)
         num_cells.append(num_objects)
-    return num_cells
+    return np.array(num_cells)
 
 
+
+def generate_synthetic_masks(num_cells, vae_model, size=256):
+    """ Generate one synthetic patch using the VAE model
+
+    Parameters:
+    -----------
+    num_cells : int
+        The number of cells to generate in the patch.
+    vae_model : VAE
+        The trained VAE model.
+    size : int
+        The size of the patch.
+
+    Returns:
+    --------
+    synthetic_mask : np.ndarray
+        The synthetic mask.
+    """
+    # Generate single cell masks
+    samples = vae_model.sample(num_cells, binary=True).cpu().numpy()
+
+    # Create the synthetic mask
+    synthetic_mask = np.zeros((size, size), dtype=np.uint8)
+
+    # Crop the single cell masks
+    cropped_masks = []
+    for sample in samples:
+        # check if sample is empty
+        if np.sum(sample) < 10:
+            continue
+        cropped_mask = crop_object(sample[0])
+        cropped_masks.append(cropped_mask)
+
+    # Place the cropped masks in the synthetic mask randomly and without overlapping
+    for mask in cropped_masks:
+        placed = False
+        counter = 0
+        while not placed:
+            # Allow random coordinates to go beyond patch borders
+            y = np.random.randint(-mask.shape[0] + 1, size - 1)
+            x = np.random.randint(-mask.shape[1] + 1, size - 1)
+            if can_place(synthetic_mask, mask, (y, x)):
+                # Compute the region to place the mask
+                y1, x1 = max(y, 0), max(x, 0)
+                y2, x2 = min(y + mask.shape[0], size), min(x + mask.shape[1], size)
+                
+                # Compute the corresponding region of the mask to place
+                mask_y1, mask_x1 = max(0, -y), max(0, -x)
+                mask_y2, mask_x2 = mask_y1 + (y2 - y1), mask_x1 + (x2 - x1)
+                
+                # Place the mask
+                synthetic_mask[y1:y2, x1:x2] = np.maximum(synthetic_mask[y1:y2, x1:x2], mask[mask_y1:mask_y2, mask_x1:mask_x2])
+                placed = True
+            counter += 1
+            if counter > 100:
+                break
+
+    return synthetic_mask
+
+
+
+
+def can_place(patch, mask, top_left):
+    """ Check if the mask can be placed at the top_left position without overlap
+
+    Parameters:
+    -----------
+    patch : np.ndarray
+        The patch where the mask will be placed.
+    mask : np.ndarray
+        The cropped mask to be placed.
+    top_left : tuple
+        The top-left corner of the mask. The tuple contains the y and x coordinates.
+    
+    Returns:
+    --------
+    bool
+        True if the mask can be placed, False otherwise.
+    """
+    y, x = top_left
+    h, w = mask.shape
+    
+    # Calculate the region to be checked
+    y1, x1 = max(y, 0), max(x, 0)
+    y2, x2 = min(y + h, patch.shape[0]), min(x + w, patch.shape[1])
+    
+    # Calculate the corresponding region in the mask
+    mask_y1, mask_x1 = max(0, -y), max(0, -x)
+    mask_y2, mask_x2 = mask_y1 + (y2 - y1), mask_x1 + (x2 - x1)
+    
+    if np.any(patch[y1:y2, x1:x2] & mask[mask_y1:mask_y2, mask_x1:mask_x2]):
+        return False
+    return True
+
+
+
+def place_masks_randomly(cropped_masks, final_size=256):
+    """ Place all masks randomly within the final patch 
+    
+    Parameters:
+    -----------
+    cropped_masks : list
+        List of cropped masks.
+    final_size : int
+        The size of the final patch.
+    
+    Returns:
+    --------
+    final_patch : np.ndarray
+        The final patch with all masks placed.
+    """
+    final_patch = np.zeros((final_size, final_size), dtype=np.uint8)
+    
+    for mask in cropped_masks:
+        placed = False
+        while not placed:
+            # Generate random top-left corner
+            y = random.randint(-mask.shape[0] + 1, final_size - 1)
+            x = random.randint(-mask.shape[1] + 1, final_size - 1)
+            if can_place(final_patch, mask, (y, x)):
+                # Compute the region to place the mask
+                y1, x1 = max(y, 0), max(x, 0)
+                y2, x2 = min(y + mask.shape[0], final_size), min(x + mask.shape[1], final_size)
+                
+                # Compute the corresponding region of the mask to place
+                mask_y1, mask_x1 = max(0, -y), max(0, -x)
+                mask_y2, mask_x2 = mask_y1 + (y2 - y1), mask_x1 + (x2 - x1)
+                
+                # Place the mask
+                final_patch[y1:y2, x1:x2] = np.maximum(final_patch[y1:y2, x1:x2], mask[mask_y1:mask_y2, mask_x1:mask_x2])
+                placed = True
+                
+    return final_patch
 
 
 
@@ -193,17 +325,18 @@ if __name__ == '__main__':
 
     # Load the trained VAE model
     model = VAE.load_model(save_folder=config.SAVE_FOLDER).to(config.DEVICE)
+    model.device = config.DEVICE
 
     # Estimate the distribution of the number of cells in each patch
-    ctr_files = os.listdir(config.IMG_DIRS[0])
-    mds_files = os.listdir(config.IMG_DIRS[1])
-    aml_files = os.listdir(config.IMG_DIRS[2])
+    ctr_files = os.listdir(config.SOURCE_DIST_ESTIMATE[0])
+    mds_files = os.listdir(config.SOURCE_DIST_ESTIMATE[1])
+    aml_files = os.listdir(config.SOURCE_DIST_ESTIMATE[2])
 
-    ctr_filenames = [os.path.join(config.IMG_DIRS[0], file) for file in ctr_files]
-    mds_filenames = [os.path.join(config.IMG_DIRS[1], file) for file in mds_files]
-    aml_filenames = [os.path.join(config.IMG_DIRS[2], file) for file in aml_files]
+    ctr_filenames = [os.path.join(config.SOURCE_DIST_ESTIMATE[0], file) for file in ctr_files]
+    mds_filenames = [os.path.join(config.SOURCE_DIST_ESTIMATE[1], file) for file in mds_files]
+    aml_filenames = [os.path.join(config.SOURCE_DIST_ESTIMATE[2], file) for file in aml_files]
 
-    filenames = ctr_filenames + mds_filenames + aml_filenames
+    filenames = ctr_filenames #+ mds_filenames + aml_filenames
     np.random.shuffle(filenames)
 
     num_cells = estimate_num_cells_distribution(filenames, 10000)
@@ -213,7 +346,7 @@ if __name__ == '__main__':
 
     # Generate synthetic masks
     save_counter = len(os.listdir(config.SYNTHETIC_MASKS_DIR))
-    for i in range(config.NUM_SAMPLES):
+    for i in tqdm(range(config.NUM_SAMPLES)):
         n = np.random.choice(x, size=1, p=probabilities).item()
         syn = generate_synthetic_masks(num_cells=n, vae_model=model, size=256)
         filename = os.path.join(config.SYNTHETIC_MASKS_DIR, f'syn_mask_{save_counter}.png')

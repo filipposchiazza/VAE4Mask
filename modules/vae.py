@@ -116,6 +116,31 @@ class VAE(nn.Module):
         return x_pred, mean, log_var
     
 
+    def encode(self, x):
+        """Encode the input tensor.
+        
+        Parameters:
+        -----------
+        x : torch.Tensor
+            Input tensor.
+        
+        Returns:
+        --------
+        z : torch.Tensor
+            Sampled latent tensor.
+        mean : torch.Tensor
+            Mean tensor.
+        log_var : torch.Tensor
+            Log variance tensor.
+        """
+        y = self.encoder(x)
+        y = y.view(-1, self.num_dense_features)
+        mean = self.mean(y)
+        log_var = self.log_var(y)
+        z = self.reparameterize(mean, log_var)
+        return z, mean, log_var
+    
+
     def sample(self, num_samples, binary=True):
         """Sample from the latent space.
         
@@ -246,12 +271,9 @@ class VAE(nn.Module):
         history : dict
             Training and validation history.
         """
-        history_file = os.path.join(save_folder, 'diffusion_history.pkl')
+        history_file = os.path.join(save_folder, 'vae_history.pkl')
         with open(history_file, 'rb') as f:
             history = pickle.load(f)
         return history
-
-
-        
     
 

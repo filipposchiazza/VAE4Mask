@@ -60,6 +60,47 @@ class MaskDataset(data.Dataset):
         return mask.unsqueeze(0), label
     
 
+class SingleClassMaskDataset(data.Dataset):
+    def __init__(self, dir, transform=None, fraction=1.0):
+        """Mask dataset for a single class contained in the directory.
+
+        Parameters
+        ----------
+        dir : str
+            Path to the directory containing images.
+        transform : torchvision.transforms
+            Transformation to apply to the images.
+        fraction : float
+            Fraction of the dataset to keep.
+        """
+
+        self.transform = transform
+        self.fraction = fraction
+        
+        # List all images in the directory
+        self.images = [(os.path.join(dir, img), 0) for img in sorted(os.listdir(dir))]
+        
+        # Ensure the directory has images
+        assert len(self.images) > 0, "Directory must contain images"
+
+        # shuffle the list, after setting the seed
+        random.seed(42)
+        random.shuffle(self.images)
+
+        # Keep only a fraction of the dataset
+        self.images = self.images[:int(len(self.images) * self.fraction)]
+
+        
+    def __len__(self):
+        return len(self.images)
+    
+
+    def __getitem__(self, idx):
+        img_name, label = self.images[idx]
+        mask = read_image(img_name)[0, :, :] / 255.0
+        return mask.unsqueeze(0), label
+    
+
 
 
 def prepare_MaskDataset(img_dirs, 
@@ -68,6 +109,34 @@ def prepare_MaskDataset(img_dirs,
                         fraction=1.0,
                         transform=None,
                         seed=123):
+    """Prepare the MaskDataset for training and validation.
+
+    Parameters
+    ----------
+    img_dirs : list
+        List of directories containing images.
+    batch_size : int
+        Batch size for the dataloaders.
+    validation_split : float
+        Fraction of the dataset to use for validation.
+    fraction : float
+        Fraction of the dataset to keep.
+    transform : torchvision.transforms
+        Transformation to apply to the images.
+    seed : int
+        Seed for the random split.
+
+    Returns
+    -------
+    train_dataset : data.Dataset
+        Training dataset.
+    val_dataset : data.Dataset
+        Validation dataset.
+    train_dataloader : data.DataLoader
+        Training dataloader.
+    val_dataloader : data.DataLoader
+        Validation dataloader.
+    """
     dataset = MaskDataset(*img_dirs, transform=transform, fraction=fraction)
     val_len = int(len(dataset) * validation_split)
     train_len = len(dataset) - val_len
@@ -83,5 +152,60 @@ def prepare_MaskDataset(img_dirs,
                                     batch_size=batch_size,
                                     shuffle=False,
                                     num_workers=4)
+    
+    return train_dataset, val_dataset, train_dataloader, val_dataloader
+
+
+
+
+def prepare_SingleClassMaskDataset(img_dir,
+                                   batch_size,
+                                   validation_split,
+                                   fraction=1.0,
+                                   transform=None,
+                                   seed=123):
+    """Prepare the SingleClassMaskDataset for training and validation.
+    
+    Parameters
+    ----------
+    img_dir : str
+        Directory containing images.
+    batch_size : int
+        Batch size for the dataloaders.
+    validation_split : float
+        Fraction of the dataset to use for validation.
+    fraction : float
+        Fraction of the dataset to keep.
+    transform : torchvision.transforms
+        Transformation to apply to the images.
+    seed : int
+        Seed for the random split.
+
+    Returns
+    -------
+    train_dataset : data.Dataset
+        Training dataset.
+    val_dataset : data.Dataset  
+        Validation dataset.
+    train_dataloader : data.DataLoader
+        Training dataloader.
+    val_dataloader : data.DataLoader
+        Validation dataloader.
+    """
+    dataset = SingleClassMaskDataset(img_dir, transform=transform, fraction=fraction)
+    val_len = int(len(dataset) * validation_split)
+    train_len = len(dataset) - val_len
+    generator = torch.Generator().manual_seed(seed)
+    train_dataset, val_dataset = data.random_split(dataset, 
+                                                   lengths=[train_len, val_len], 
+                                                   generator=generator)
+    train_dataloader = data.DataLoader(train_dataset, 
+                                       batch_size=batch_size, 
+                                       shuffle=False, 
+                                       num_workers=4)
+    val_dataloader = data.DataLoader(val_dataset,
+                                       batch_size=batch_size,
+                                       shuffle=False,
+                                       num_workers=4)
     
     return train_dataset, val_dataset, train_dataloader, val_dataloader
